@@ -12,23 +12,35 @@ object MappableMacroImpl {
   def materializeMappableImpl[T: c.WeakTypeTag](c: whitebox.Context): c.Expr[Mappable[T]] = {
     import c.universe._
     val tpe = weakTypeOf[T]
+    val optTpeCtor = typeOf[Option[_]].typeConstructor
 
     val fields = tpe.decls.collectFirst {
       case m: MethodSymbol if m.isPrimaryConstructor => m
-    }.get.paramLists.head
+    }.get.paramLists.headOption.toSeq.flatten
 
-    val toMapParams = fields.map { field =>
+    val addEntries = fields.map { field =>
       val name = field.asTerm.name
       val key = name.decodedName.toString
-      q"$key -> t.$name"
+
+      if (field.info.typeConstructor <:< optTpeCtor) {
+        // Option
+        q"t.$name.foreach { v => builder += $key -> v }"
+      } else {
+        q"builder += $key -> t.$name"
+      }
     }
 
-    val mappable =
-      q"""
-        new Mappable[$tpe] {
-          def toMap(t: $tpe): Map[String, Any] = Map(..$toMapParams)
+    val mappable = q"""
+      new _root_.mappable.Mappable[$tpe] {
+        def toMap(t: $tpe): Map[String, Any] = {
+          val builder = scala.collection.immutable.Map.newBuilder[String, Any]
+
+          ..$addEntries
+
+          builder.result()
         }
-      """
+      }"""
+
     c.Expr[Mappable[T]](mappable)
   }
 }

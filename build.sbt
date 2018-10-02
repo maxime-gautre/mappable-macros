@@ -10,6 +10,12 @@ val commonSettings = Seq(
   )
 )
 
-lazy val macros = project.in(file("macros")).settings(commonSettings : _*)
-lazy val example = project.in(file("example")).dependsOn(macros).settings(commonSettings : _*)
+lazy val macros = project.in(file("macros")).
+  settings(commonSettings ++ Seq(
+    libraryDependencies ++= Seq(
+      "org.specs2" %% "specs2-core" % "4.3.2" % Test)
+  ))
+
+lazy val example = project.in(file("example")).
+  dependsOn(macros).settings(commonSettings)
 
